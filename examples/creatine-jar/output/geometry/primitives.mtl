@@ -1,0 +1,31 @@
+newmtl primitives_floor_f0
+Kd 1 1 1
+map_Kd primitives_floor_f0.jpg
+
+newmtl primitives_floor_f1
+Kd 1 1 1
+map_Kd primitives_floor_f1.jpg
+
+newmtl primitives_floor_f2
+Kd 1 1 1
+map_Kd primitives_floor_f2.jpg
+
+newmtl primitives_floor_f3
+Kd 1 1 1
+map_Kd primitives_floor_f3.jpg
+
+newmtl primitives_floor_f4
+Kd 1 1 1
+map_Kd primitives_floor_f4.jpg
+
+newmtl primitives_floor_f5
+Kd 1 1 1
+map_Kd primitives_floor_f5.jpg
+
+newmtl primitives_object1_cyl1_side
+Kd 1 1 1
+map_Kd primitives_object1_cyl1_side.jpg
+
+newmtl primitives_object1_cyl1_top
+Kd 1 1 1
+map_Kd primitives_object1_cyl1_top.jpg

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Telefonla Çek</title>
+<style>
+  :root { --bg: #111214; --ink: #d9d6cf; --dim: #7d7a74; --signal: #ffb000; --line: #2a2b2e; }
+  * { box-sizing: border-box; margin: 0; }
+  body { min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 "Segoe UI", system-ui, sans-serif; padding: 24px; }
+  main { max-width: 420px; text-align: center; }
+  h1 { font-size: 22px; margin-bottom: 18px; letter-spacing: .04em; }
+  h1 b { color: var(--signal); }
+  #qr { background: #fff; padding: 16px; border-radius: 12px; display: inline-block; }
+  #qr img { display: block; width: 280px; height: 280px; image-rendering: pixelated; }
+  ol { text-align: left; margin: 22px 0 0 20px; color: var(--dim); }
+  ol li { margin-bottom: 8px; }
+  ol b { color: var(--ink); }
+  code { display: block; margin-top: 16px; padding: 10px; border: 1px solid var(--line); border-radius: 8px;
+         word-break: break-all; font-size: 12px; color: var(--dim); }
+</style>
+</head>
+<body>
+<main>
+  <h1><b>●</b> Telefonla çek</h1>
+  <div id="qr"></div>
+  <ol>
+    <li>Telefon bu bilgisayarla <b>aynı Wi-Fi</b>'da olsun.</li>
+    <li>Kamerayla QR kodu okut ve bağlantıyı <b>Chrome</b>'da aç.</li>
+    <li>"Bağlantınız gizli değil" uyarısında <b>Gelişmiş → yine de devam et</b>. Sertifika bu bilgisayarda üretildi, veri dışarı çıkmaz.</li>
+    <li>Kamera ve hareket sensörü izinlerini ver, rehberi takip et.</li>
+  </ol>
+  <code id="url"></code>
+</main>
+<script type="module">
+import qrcode from "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/+esm";
+const url = new URLSearchParams(location.search).get("u") || "";
+document.getElementById("url").textContent = url;
+const qr = qrcode(0, "M");
+qr.addData(url);
+qr.make();
+document.getElementById("qr").innerHTML = qr.createImgTag(8, 0);
+</script>
+</body>
+</html>

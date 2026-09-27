@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0c0d">
+<title>Tarama Rehberi</title>
+<style>
+  :root {
+    --bg: #0b0c0d;
+    --panel: rgba(11, 12, 13, .78);
+    --ink: #eeeae2;
+    --dim: #8d8a83;
+    --line: #2a2b2e;
+    --signal: #ffb000;
+    --ok: #3ddc84;
+    --warn: #ff6b5b;
+    --font: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: var(--bg); color: var(--ink); font: 16px/1.4 var(--font); overflow: hidden; }
+  .screen { position: fixed; inset: 0; display: none; }
+  .screen.on { display: block; }
+  button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+
+  /* start */
+  #start { padding: max(24px, env(safe-area-inset-top)) 20px 24px; overflow-y: auto; }
+  #start h1 { font-size: 26px; letter-spacing: .02em; margin-bottom: 6px; }
+  #start h1 b { color: var(--signal); }
+  #start p { color: var(--dim); margin-bottom: 22px; }
+  .mode { display: block; width: 100%; text-align: left; background: #151619; border: 1px solid var(--line);
+          border-radius: 14px; padding: 18px; margin-bottom: 12px; }
+  .mode:active { border-color: var(--signal); }
+  .mode strong { display: block; font-size: 19px; margin-bottom: 4px; }
+  .mode span { color: var(--dim); font-size: 14px; }
+  .tips { margin-top: 18px; color: var(--dim); font-size: 14px; }
+  .tips li { margin: 0 0 6px 18px; }
+  #startErr { color: var(--warn); margin-top: 14px; min-height: 1em; }
+
+  /* capture */
+  #video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  #flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .top { position: absolute; left: 0; right: 0; top: 0; padding: max(10px, env(safe-area-inset-top)) 14px 10px;
+         display: flex; justify-content: space-between; align-items: center; background: linear-gradient(var(--panel), transparent); }
+  .pill { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 14px; }
+  .pill b { color: var(--signal); }
+  #reticle { position: absolute; left: 50%; top: 42%; width: 64px; height: 64px; margin: -32px 0 0 -32px;
+             border: 2px solid rgba(255,255,255,.7); border-radius: 50%; transition: border-color .15s, transform .15s; }
+  #reticle.ready { border-color: var(--ok); transform: scale(1.12); }
+  #reticle.bad { border-color: var(--warn); }
+  .bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+            background: linear-gradient(transparent, var(--panel) 30%); display: grid; gap: 10px; justify-items: center; }
+  #guide { font-size: 22px; font-weight: 700; text-align: center; text-shadow: 0 1px 8px #000; min-height: 1.4em; }
+  #sub { color: var(--dim); font-size: 14px; text-align: center; min-height: 1.2em; }
+  #ring { width: 190px; height: 190px; }
+  .row { display: flex; gap: 10px; width: 100%; }
+  .btn { flex: 1; padding: 14px; border-radius: 12px; background: #1c1d20; border: 1px solid var(--line); font-weight: 600; }
+  .btn.primary { background: var(--signal); color: #111; border: 0; }
+  .btn:disabled { opacity: .4; }
+
+  /* processing */
+  #done { padding: max(28px, env(safe-area-inset-top)) 20px 24px; }
+  #done h2 { font-size: 22px; margin-bottom: 12px; }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 14px 0 8px; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--signal); transition: width .4s; }
+  #stage { color: var(--dim); }
+  #links { display: grid; gap: 10px; margin-top: 22px; }
+  #links a { display: block; text-align: center; padding: 14px; border-radius: 12px; background: var(--signal);
+             color: #111; font-weight: 700; text-decoration: none; }
+  #links a.alt { background: #1c1d20; color: var(--ink); border: 1px solid var(--line); }
+</style>
+</head>
+<body>
+
+<section class="screen on" id="start">
+  <h1><b>●</b> Tarama Rehberi</h1>
+  <p>Fotoğraflar doğrudan bilgisayarına gider, internete çıkmaz. Rehber sana nereden çekeceğini söyler ve telefon sabitken kendisi çeker.</p>
+  <button class="mode" data-mode="object">
+    <strong>Bir şeyin etrafında</strong>
+    <span>Masa, kasa, obje. Etrafında yavaşça iki tur: göz hizasından ve üstten.</span>
+  </button>
+  <button class="mode" data-mode="room">
+    <strong>Oda içi</strong>
+    <span>Duvarlar boyunca yan adımlarla yürü, her adımda rehberin gösterdiği yöne bak.</span>
+  </button>
+  <ul class="tips">
+    <li>Işıkları aç, ekranları kapat.</li>
+    <li>Yavaş hareket et; halka yeşillendikçe ilerle.</li>
+    <li>Parlayan, cam ve ayna yüzeyler iyi çıkmaz.</li>
+  </ul>
+  <div id="startErr"></div>
+</section>
+
+<section class="screen" id="capture">
+  <video id="video" playsinline muted autoplay></video>
+  <div id="flash"></div>
+  <div class="top">
+    <span class="pill" id="modeLabel">obje</span>
+    <span class="pill"><b id="count">0</b> foto · <span id="pending">0</span> yükleniyor</span>
+  </div>
+  <div id="reticle"></div>
+  <div class="bottom">
+    <div id="guide">Başlamak için hedefe bak</div>
+    <div id="sub"></div>
+    <svg id="ring" viewBox="-100 -100 200 200" aria-label="Kapsama halkası"></svg>
+    <div class="row">
+      <button class="btn" id="shoot">Elle çek</button>
+      <button class="btn primary" id="finish" disabled>Bitir ve işle</button>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="done">
+  <h2 id="doneTitle">Bilgisayarda işleniyor…</h2>
+  <div class="bar"><i id="barFill"></i></div>
+  <div id="stage">Başlıyor</div>
+  <div id="links"></div>
+</section>
+
+<script>
+"use strict";
+// ---- tuning -------------------------------------------------------------------------------
+const SEGMENTS = 24;                 // 15° slices around the subject: ~70% overlap between shots
+const RINGS = {
+  object: [ { name: "Göz hizası", min: -40, max: -5 }, { name: "Üstten", min: -80, max: -40 } ],
+  room:   [ { name: "Orta", min: -20, max: 20 }, { name: "Aşağı", min: -60, max: -20 }, { name: "Yukarı", min: 20, max: 60 } ],
+};
+const STEADY_DEG_S = 12;             // gyro speed below which the phone counts as still
+const STEADY_MS = 450;
+const SHOT_COOLDOWN_MS = 900;
+const SHARP_RATIO = 0.7;             // a shot must be at least this sharp relative to recent frames
+const DARK_LUMA = 38;
+const MIN_PHOTOS = 20;
+const MIN_MANUAL_PHOTOS = 8;
+const STEP_ACCEL = 1.6;              // m/s² of linear acceleration that counts as a sidestep (room mode)
+
+const $ = (id) => document.getElementById(id);
+const state = {
+  mode: "object", session: null, stream: null, imageCapture: null, photoSettings: null,
+  heading: null, pitch: null, startHeading: null, sensors: false,
+  covered: {}, count: 0, queue: [], uploading: false,
+  lastMove: 0, lastShot: 0, sharpHist: [], busy: false, moved: true,
+};
+
+function show(id) { document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("on", s.id === id)); }
+const wrap = (d) => ((d % 360) + 360) % 360;
+const signed = (d) => ((d + 540) % 360) - 180;
+
+// ---- sensors ------------------------------------------------------------------------------
+// Back camera looks along the device's -Z axis; rotate it into Earth frame (x east, y north, z up)
+// with R = Rz(alpha)·Rx(beta)·Ry(gamma). Upright phone facing north -> heading 0°, pitch 0°.
+function cameraDirection(alpha, beta, gamma) {
+  const r = Math.PI / 180, ca = Math.cos(alpha * r), sa = Math.sin(alpha * r);
+  const cb = Math.cos(beta * r), sb = Math.sin(beta * r), cg = Math.cos(gamma * r), sg = Math.sin(gamma * r);
+  const x = -ca * sg - sa * sb * cg, y = -sa * sg + ca * sb * cg, z = -cb * cg;
+  return { heading: wrap(Math.atan2(x, y) / r), pitch: Math.asin(Math.max(-1, Math.min(1, z))) / r };
+}
+
+function onOrientation(e) {
+  if (e.alpha == null) return;
+  state.sensors = true;
+  const d = cameraDirection(e.alpha, e.beta, e.gamma);
+  state.heading = d.heading; state.pitch = d.pitch;
+}
+
+function onMotion(e) {
+  const rr = e.rotationRate;
+  if (rr && Math.hypot(rr.alpha || 0, rr.beta || 0, rr.gamma || 0) > STEADY_DEG_S) state.lastMove = performance.now();
+  const a = e.acceleration;
+  if (a && Math.hypot(a.x || 0, a.y || 0, a.z || 0) > STEP_ACCEL) state.moved = true;
+}
+
+async function startSensors() {
+  // iOS asks for permission; Android Chrome grants it on secure pages.
+  for (const Ev of [window.DeviceOrientationEvent, window.DeviceMotionEvent]) {
+    if (Ev && typeof Ev.requestPermission === "function") { try { await Ev.requestPermission(); } catch {} }
+  }
+  const absolute = "ondeviceorientationabsolute" in window;
+  addEventListener(absolute ? "deviceorientationabsolute" : "deviceorientation", onOrientation);
+  addEventListener("devicemotion", onMotion);
+}
+
+// ---- camera -------------------------------------------------------------------------------
+async function startCamera() {
+  state.stream = await navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: { facingMode: { ideal: "environment" }, width: { ideal: 4096 }, height: { ideal: 3072 } },
+  });
+  const video = $("video");
+  video.srcObject = state.stream;
+  await video.play();
+  if ("ImageCapture" in window) state.imageCapture = new ImageCapture(state.stream.getVideoTracks()[0]);
+}
+
+const probe = document.createElement("canvas");
+probe.width = 160; probe.height = 120;
+const probeCtx = probe.getContext("2d", { willReadFrequently: true });
+
+// Brightness and variance-of-Laplacian sharpness on a small copy of the live preview.
+function frameStats() {
+  const v = $("video");
+  if (!v.videoWidth) return null;
+  probeCtx.drawImage(v, 0, 0, probe.width, probe.height);
+  const px = probeCtx.getImageData(0, 0, probe.width, probe.height).data;
+  const w = probe.width, h = probe.height, g = new Float32Array(w * h);
+  let luma = 0;
+  for (let i = 0; i < w * h; i++) { g[i] = 0.299 * px[4 * i] + 0.587 * px[4 * i + 1] + 0.114 * px[4 * i + 2]; luma += g[i]; }
+  let sum = 0, sq = 0, n = 0;
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x, lap = g[i - 1] + g[i + 1] + g[i - w] + g[i + w] - 4 * g[i];
+    sum += lap; sq += lap * lap; n++;
+  }
+  return { luma: luma / (w * h), sharp: sq / n - (sum / n) ** 2 };
+}
+
+async function grabPhoto() {
+  if (state.imageCapture) {
+    try {
+      // Without explicit settings some Android phones return preview-sized shots (1080×1920
+      // on the first real capture); ask for the sensor's full photo resolution instead.
+      state.photoSettings ??= await state.imageCapture.getPhotoCapabilities()
+        .then((c) => ({ imageWidth: c.imageWidth.max, imageHeight: c.imageHeight.max }))
+        .catch(() => ({}));
+      return await state.imageCapture.takePhoto(state.photoSettings);
+    } catch { /* fall back to the video frame */ }
+  }
+  const v = $("video"), c = document.createElement("canvas");
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext("2d").drawImage(v, 0, 0);
+  return await new Promise((res) => c.toBlob(res, "image/jpeg", 0.93));
+}
+
+// ---- coverage -----------------------------------------------------------------------------
+const rings = () => RINGS[state.mode];
+const ringIndex = (pitch) => rings().findIndex((r) => pitch >= r.min && pitch < r.max);
+const segmentOf = (heading) => Math.floor(wrap(heading - state.startHeading) / (360 / SEGMENTS)) % SEGMENTS;
+const key = (ring, seg) => `${ring}:${seg}`;
+const ringDone = (ring) => Array.from({ length: SEGMENTS }, (_, s) => state.covered[key(ring, s)]).filter(Boolean).length;
+
+function nearestGap(ring, heading) {
+  const here = wrap(heading - state.startHeading);
+  let best = null;
+  for (let s = 0; s < SEGMENTS; s++) {
+    if (state.covered[key(ring, s)]) continue;
+    const diff = signed((s + 0.5) * (360 / SEGMENTS) - here);
+    if (best === null || Math.abs(diff) < Math.abs(best)) best = diff;
+  }
+  return best;
+}
+
+function drawRing() {
+  const list = rings(), step = 360 / SEGMENTS;
+  const p = (rad, a) => `${(rad * Math.cos(a)).toFixed(1)},${(rad * Math.sin(a)).toFixed(1)}`;
+  let html = "";
+  list.forEach((_, i) => {
+    const R = 88 - i * (60 / list.length), inner = R - 50 / list.length;
+    for (let s = 0; s < SEGMENTS; s++) {
+      const a0 = (s * step - 90 + 1) * Math.PI / 180, a1 = ((s + 1) * step - 90 - 1) * Math.PI / 180;
+      const fill = state.covered[key(i, s)] ? "var(--ok)" : "rgba(255,255,255,.14)";
+      html += `<path d="M${p(inner, a0)} L${p(R, a0)} A${R},${R} 0 0 1 ${p(R, a1)} L${p(inner, a1)} A${inner},${inner} 0 0 0 ${p(inner, a0)} Z" fill="${fill}"/>`;
+    }
+  });
+  if (state.heading != null && state.startHeading != null) {
+    const a = (wrap(state.heading - state.startHeading) - 90) * Math.PI / 180;
+    // Needle starts at the innermost ring so the ring name in the centre stays readable.
+    html += `<line x1="${(34 * Math.cos(a)).toFixed(1)}" y1="${(34 * Math.sin(a)).toFixed(1)}" x2="${(97 * Math.cos(a)).toFixed(1)}" y2="${(97 * Math.sin(a)).toFixed(1)}" stroke="var(--signal)" stroke-width="3" stroke-linecap="round"/>`;
+  }
+  const i = state.pitch == null ? -1 : ringIndex(state.pitch);
+  html += `<text x="0" y="6" text-anchor="middle" fill="#eeeae2" font-size="15" font-weight="700">${i >= 0 ? list[i].name : "—"}</text>`;
+  $("ring").innerHTML = html;
+}
+
+// ---- guidance loop ------------------------------------------------------------------------
+// say() shows a hint and returns true = "not ready yet"; guidance() returns false when a shot may be taken.
+function say(text, sub = "", mark = "") {
+  $("guide").textContent = text; $("sub").textContent = sub;
+  $("reticle").className = mark;
+  return true;
+}
+
+function guidance(stats) {
+  if (!stats) return say("Kamera açılıyor…");
+  if (stats.luma < DARK_LUMA) return say("Çok karanlık", "Işığı aç ya da daha aydınlık bir yere geç", "bad");
+  if (!state.sensors) return say("Sensör yok", "Elle çek düğmesini kullan, her fotoğrafta biraz yer değiştir");
+  const steady = performance.now() - state.lastMove > STEADY_MS;
+  if (state.startHeading == null) {
+    return steady ? false : say("Hedefe bak ve sabit tut", "İlk fotoğraf başlangıç noktası olur");
+  }
+  const list = rings(), ring = ringIndex(state.pitch);
+  if (ring < 0) {
+    const want = Math.max(0, list.findIndex((_, i) => ringDone(i) < SEGMENTS));
+    return say(state.pitch > list[want].max ? "Telefonu aşağı eğ" : "Telefonu yukarı kaldır", `Hedef: ${list[want].name}`, "bad");
+  }
+  if (ringDone(ring) >= SEGMENTS) {
+    const next = list.findIndex((_, i) => ringDone(i) < SEGMENTS);
+    if (next < 0) return say("Tamamlandı!", "Bitir ve işle'ye bas", "ready");
+    const how = state.mode === "object"
+      ? (next > ring ? "telefonu kaldır, yukarıdan aşağı bak" : "göz hizasına in")
+      : `telefonu ${list[next].min > list[ring].min ? "yukarı" : "aşağı"} eğ`;
+    return say(`${list[ring].name} bitti`, `${list[next].name}: ${how}`);
+  }
+  if (!steady) return say("Yavaşla, sabit tut", "", "bad");
+  if (state.covered[key(ring, segmentOf(state.heading))]) {
+    const gap = nearestGap(ring, state.heading);
+    // Walking right around an object turns the camera left, so a lower target heading means "walk right".
+    if (state.mode === "object") return say(gap < 0 ? "Sağa doğru yürü →" : "← Sola doğru yürü", "Objeye bakmaya devam et");
+    return say(gap > 0 ? "Sağa dön →" : "← Sola dön");
+  }
+  if (state.mode === "room" && !state.moved) return say("Bir adım yana kay", "Aynı yerden dönerek çekme", "bad");
+  return false;
+}
+
+function tick() {
+  requestAnimationFrame(tick);
+  if (!$("capture").classList.contains("on") || state.busy) return;
+  const stats = frameStats();
+  if (stats) { state.sharpHist.push(stats.sharp); if (state.sharpHist.length > 40) state.sharpHist.shift(); }
+  drawRing();
+  if (guidance(stats)) return;
+  const sorted = [...state.sharpHist].sort((a, b) => a - b), median = sorted[sorted.length >> 1] || 0;
+  if (stats.sharp < SHARP_RATIO * median) { say("Sabit tut, bulanık", "", "bad"); return; }
+  if (performance.now() - state.lastShot < SHOT_COOLDOWN_MS) return;
+  say("Çekiliyor…", "", "ready");
+  shoot(false);
+}
+
+// ---- shooting & upload --------------------------------------------------------------------
+async function shoot(manual) {
+  if (state.busy) return;
+  state.busy = true;
+  try {
+    if (state.startHeading == null && state.heading != null) state.startHeading = state.heading;
+    const ring = state.pitch == null ? -1 : ringIndex(state.pitch);
+    const seg = state.heading == null ? -1 : segmentOf(state.heading);
+    const blob = await grabPhoto();
+    $("flash").style.opacity = 0.6; setTimeout(() => ($("flash").style.opacity = 0), 90);
+    navigator.vibrate?.(30);
+    if (ring >= 0 && seg >= 0) state.covered[key(ring, seg)] = true;
+    state.count++; state.lastShot = performance.now(); state.moved = false;
+    $("count").textContent = state.count;
+    $("finish").disabled = state.count < (state.sensors ? MIN_PHOTOS : MIN_MANUAL_PHOTOS);
+    state.queue.push(blob);
+    pump();
+  } catch (err) {
+    say("Fotoğraf çekilemedi", String(err.message || err), "bad");
+  } finally {
+    state.busy = false;
+  }
+}
+
+async function pump() {
+  if (state.uploading) return;
+  state.uploading = true;
+  while (state.queue.length) {
+    $("pending").textContent = state.queue.length;
+    try {
+      const r = await fetch(`/api/session/${state.session}/photo`,
+                            { method: "POST", body: state.queue[0], headers: { "Content-Type": "image/jpeg" } });
+      if (!r.ok) throw new Error((await r.json()).error || r.status);
+      state.queue.shift();
+    } catch (err) {
+      $("sub").textContent = "Yükleme bekliyor: " + (err.message || err);
+      await new Promise((res) => setTimeout(res, 2000));
+    }
+  }
+  $("pending").textContent = 0;
+  state.uploading = false;
+}
+
+// ---- flow ---------------------------------------------------------------------------------
+async function begin(mode) {
+  $("startErr").textContent = "";
+  try {
+    state.mode = mode;
+    await startSensors();
+    await startCamera();
+    const r = await fetch("/api/session", { method: "POST", body: JSON.stringify({ mode }) });
+    if (!r.ok) throw new Error((await r.json()).error || "sunucu hatası");
+    state.session = (await r.json()).id;
+    $("modeLabel").textContent = mode === "object" ? "obje" : "oda";
+    try { await navigator.wakeLock?.request("screen"); } catch {}
+    show("capture");
+    requestAnimationFrame(tick);
+  } catch (err) {
+    $("startErr").textContent = "Başlatılamadı: " + (err.message || err) + ". Kamera iznini ver ve sayfayı yenile.";
+  }
+}
+
+async function finish() {
+  $("finish").disabled = true;
+  while (state.queue.length || state.uploading) await new Promise((res) => setTimeout(res, 400));
+  state.stream?.getTracks().forEach((t) => t.stop());
+  await fetch(`/api/session/${state.session}/finish`, { method: "POST" });
+  show("done");
+  poll();
+}
+
+async function poll() {
+  try {
+    const s = await (await fetch(`/api/session/${state.session}/status`)).json();
+    $("barFill").style.width = `${Math.round(s.progress * 100)}%`;
+    $("stage").textContent = s.label ? `${s.label} · %${Math.round(s.progress * 100)}` : "Sırada";
+    if (s.state === "done") {
+      $("doneTitle").textContent = "Hazır";
+      const links = [];
+      if (s.outputs.splat) links.push(`<a href="/viewer/index.html?model=${encodeURIComponent(s.outputs.splat)}">Gerçekçi görünüm (splat)</a>`);
+      if (s.outputs.mesh) links.push(`<a class="alt" href="/viewer/index.html?model=${encodeURIComponent(s.outputs.mesh)}">3D model (mesh)</a>`);
+      $("links").innerHTML = links.join("");
+      return;
+    }
+    if (s.state === "failed") {
+      $("doneTitle").textContent = "Olmadı";
+      $("stage").textContent = s.error || "Bilinmeyen hata";
+      return;
+    }
+  } catch { /* PC busy; keep polling */ }
+  setTimeout(poll, 2000);
+}
+
+document.querySelectorAll(".mode").forEach((b) => b.addEventListener("click", () => begin(b.dataset.mode)));
+$("shoot").addEventListener("click", () => shoot(true));
+$("finish").addEventListener("click", () => {
+  if (state.count < MIN_PHOTOS && !confirm(`${state.count} fotoğraf az. Yine de işlensin mi?`)) return;
+  finish();
+});
+</script>
+</body>
+</html>

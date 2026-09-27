@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scan Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #111214;
+    --bg-edge: #07080a;
+    --ink: #d9d6cf;
+    --ink-dim: #7d7a74;
+    --line: #2a2b2e;
+    --signal: #ffb000;
+    --font: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(ellipse at 50% 40%, var(--bg) 0%, var(--bg-edge) 100%);
+    color: var(--ink); font: 12px/1.5 var(--font); overflow: hidden;
+  }
+  canvas { display: block; outline: none; }
+  .hud { position: fixed; pointer-events: none; }
+  .hud * { pointer-events: auto; }
+  .top { top: 16px; left: 16px; right: 16px; display: flex; justify-content: space-between; gap: 16px; }
+  .title { font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .title b { color: var(--signal); }
+  .stats { color: var(--ink-dim); text-align: right; white-space: pre; }
+  .bar { bottom: 16px; left: 16px; right: 16px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  button {
+    font: inherit; color: var(--ink); background: rgba(17,18,20,.72); backdrop-filter: blur(6px);
+    border: 1px solid var(--line); padding: 6px 10px; cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  button:hover { border-color: var(--ink-dim); }
+  button:focus-visible { outline: 1px solid var(--signal); outline-offset: 2px; }
+  button[aria-pressed="true"] { border-color: var(--signal); color: var(--signal); }
+  kbd { color: var(--ink-dim); margin-left: 6px; }
+  .hint { color: var(--ink-dim); margin-left: auto; }
+  .loader { inset: 0; display: grid; place-items: center; }
+  .loader .box { width: min(320px, 80vw); }
+  .track { height: 2px; background: var(--line); margin-top: 8px; }
+  .fill { height: 100%; width: 0; background: var(--signal); transition: width .2s; }
+  .error { color: #ff6b5b; white-space: pre-wrap; }
+  .reticle { left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
+             border: 1px solid var(--signal); display: none; }
+  body.fly .reticle { display: block; }
+  @media (max-width: 600px) { .hint { display: none; } .stats { font-size: 11px; } }
+</style>
+</head>
+<body>
+<div class="hud top">
+  <div class="title"><b>●</b> <span id="name">tarama</span></div>
+  <div class="stats" id="stats"></div>
+</div>
+<div class="hud loader" id="loader"><div class="box">
+  <div id="loadText">model yükleniyor…</div>
+  <div class="track"><div class="fill" id="fill"></div></div>
+</div></div>
+<div class="hud reticle"></div>
+<div class="hud bar">
+  <button id="btnFly" aria-pressed="false">Yürü<kbd>F</kbd></button>
+  <button id="btnWire" aria-pressed="false">Tel kafes<kbd>T</kbd></button>
+  <button id="btnGrid" aria-pressed="true">Izgara<kbd>G</kbd></button>
+  <button id="btnFit">Ortala<kbd>R</kbd></button>
+  <span class="hint" id="hint">sürükle: döndür · sağ tık: kaydır · tekerlek: yakınlaş</span>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+  "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.2.0/dist/spark.module.js"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
+import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
+
+const FLY_SPEED = 1.4;        // metres per second; Shift multiplies
+const FLY_BOOST = 4;
+const HINT_ORBIT = "sürükle: döndür · sağ tık: kaydır · tekerlek: yakınlaş";
+const HINT_FLY = "WASD: yürü · Q/E: in/çık · Shift: hızlı · Esc: çık";
+const $ = (id) => document.getElementById(id);
+
+const modelUrl = new URLSearchParams(location.search).get("model");
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.01, 5000);
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.enableDamping = true;
+const fly = new PointerLockControls(camera, renderer.domElement);
+const grid = new THREE.GridHelper(20, 20, 0x3a3b3e, 0x222326);
+scene.add(grid);
+window.__viewer = { camera, orbit, renderer, scene };   // scripted captures (README media, tests)
+
+let model = null;
+let splatBounds = null;       // splats carry their own framing box (floaters excluded) from splat_frame.json
+const keys = new Set();
+const setPressed = (btn, on) => btn.setAttribute("aria-pressed", String(on));
+
+let startView = null;         // splats: a real capture viewpoint, where they look their best
+let captureViews = [];        // every capture viewpoint; N / P step through them
+let viewIndex = -1;
+
+function jumpToView(step) {
+  if (!captureViews.length) return;
+  viewIndex = (viewIndex + step + captureViews.length) % captureViews.length;
+  const v = captureViews[viewIndex];
+  camera.position.fromArray(v.position);
+  orbit.target.fromArray(v.target); orbit.update();
+  $("hint").textContent = `çekim kamerası ${viewIndex + 1}/${captureViews.length} · N: sonraki · P: önceki`;
+}
+
+function fit() {
+  if (!model) return;
+  if (startView) {
+    camera.position.fromArray(startView.position);
+    camera.near = 0.01; camera.far = 500; camera.updateProjectionMatrix();
+    orbit.target.fromArray(startView.target); orbit.update();
+    return;
+  }
+  const box = splatBounds ?? new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  const radius = box.getSize(new THREE.Vector3()).length() / 2 || 1;
+  camera.position.copy(center).add(new THREE.Vector3(radius * 0.9, radius * 0.7, radius * 0.9));
+  camera.near = radius / 500; camera.far = radius * 50; camera.updateProjectionMatrix();
+  orbit.target.copy(center); orbit.update();
+  grid.position.set(center.x, box.min.y, center.z);
+}
+
+function toggleWire() {
+  if (!model || splatBounds) return;
+  let on = false;
+  model.traverse((o) => { if (o.isMesh) { o.material.wireframe = !o.material.wireframe; on = o.material.wireframe; } });
+  setPressed($("btnWire"), on);
+}
+
+function toggleGrid() { grid.visible = !grid.visible; setPressed($("btnGrid"), grid.visible); }
+const toggleFly = () => (fly.isLocked ? fly.unlock() : fly.lock());
+
+fly.addEventListener("lock", () => {
+  orbit.enabled = false; document.body.classList.add("fly"); setPressed($("btnFly"), true);
+  $("hint").textContent = HINT_FLY;
+});
+fly.addEventListener("unlock", () => {
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  orbit.target.copy(camera.position).add(dir.multiplyScalar(2)); orbit.enabled = true;
+  document.body.classList.remove("fly"); setPressed($("btnFly"), false);
+  $("hint").textContent = HINT_ORBIT;
+});
+
+$("btnFly").onclick = toggleFly;
+$("btnWire").onclick = toggleWire;
+$("btnGrid").onclick = toggleGrid;
+$("btnFit").onclick = fit;
+addEventListener("keydown", (e) => {
+  keys.add(e.code);
+  if (fly.isLocked) return;
+  const action = { KeyF: toggleFly, KeyT: toggleWire, KeyG: toggleGrid, KeyR: fit,
+                   KeyN: () => jumpToView(1), KeyP: () => jumpToView(-1) }[e.code];
+  if (action) action();
+});
+addEventListener("keyup", (e) => keys.delete(e.code));
+addEventListener("blur", () => keys.clear());
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+function stepFly(dt) {
+  if (!fly.isLocked) return;
+  const speed = FLY_SPEED * (keys.has("ShiftLeft") ? FLY_BOOST : 1) * dt;
+  const axis = (pos, neg) => (keys.has(pos) ? 1 : 0) - (keys.has(neg) ? 1 : 0);
+  fly.moveForward(axis("KeyW", "KeyS") * speed);
+  fly.moveRight(axis("KeyD", "KeyA") * speed);
+  camera.position.y += axis("KeyE", "KeyQ") * speed;
+}
+
+function describe(obj) {
+  let tris = 0;
+  const maps = new Set();
+  obj.traverse((o) => {
+    if (!o.isMesh) return;
+    tris += o.geometry.attributes.position.count / 3;
+    for (const m of [o.material].flat()) if (m.map) maps.add(m.map);   // multi-material meshes too
+  });
+  return `${Math.round(tris).toLocaleString("tr-TR")} üçgen\n${maps.size} doku`;
+}
+
+function fail(msg) {
+  $("loadText").className = "error"; $("loadText").textContent = msg; $("fill").style.width = "0";
+}
+
+async function load() {
+  if (!modelUrl) return fail("?model=… parametresi yok.");
+  const dir = modelUrl.slice(0, modelUrl.lastIndexOf("/") + 1);
+  const file = modelUrl.slice(dir.length);
+  const parts = dir.split("/").filter(Boolean);
+  // .../<scan>/output/model.obj or .../<scan>/output/geometry/primitives.obj
+  const scan = parts[parts.indexOf("output") - 1];
+  const suffix = parts.at(-1) === "geometry" ? " · geometri" : "";
+  const isSplat = /\.ply$/i.test(file);
+  $("name").textContent = decodeURIComponent(scan ?? file) + (isSplat ? " · splat" : suffix);
+  try {
+    if (isSplat) return await loadSplat(dir, file);
+    const mtl = await new MTLLoader().setPath(dir).loadAsync(file.replace(/\.obj$/i, ".mtl"));
+    mtl.preload();
+    const obj = await new OBJLoader().setMaterials(mtl).setPath(dir).loadAsync(file, (e) => {
+      if (e.lengthComputable) $("fill").style.width = `${(100 * e.loaded / e.total).toFixed(0)}%`;
+    });
+    // Scans carry baked lighting in their texture, so render unlit to avoid double shading.
+    // Untextured models (geometry.obj boxes) keep their material colour and get simple shading,
+    // otherwise every face of a box looks the same and the shapes cannot be told apart.
+    let shaded = false;
+    const convert = (source, vertexColors) => {
+      const map = source?.map ?? null;
+      if (map) {
+        map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        return new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide });
+      }
+      shaded = true;
+      return new THREE.MeshLambertMaterial({
+        color: vertexColors ? 0xffffff : (source?.color ?? 0x888888), vertexColors, side: THREE.DoubleSide });
+    };
+    obj.traverse((o) => {
+      if (!o.isMesh) return;
+      const vertexColors = Boolean(o.geometry.attributes.color);   // OBJ files may carry per-vertex colour
+      // Objects with several materials (a cylinder's side and top textures) keep one per group.
+      o.material = Array.isArray(o.material) ? o.material.map((m) => convert(m, vertexColors))
+                                             : convert(o.material, vertexColors);
+    });
+    if (shaded) {
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x404048, 1.6));
+      const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+      sun.position.set(3, 6, 4);
+      scene.add(sun);
+    }
+    model = obj; scene.add(obj);
+    $("stats").textContent = describe(obj);
+    $("loader").remove();
+    fit();
+    window.__viewerReady = true;
+  } catch (err) {
+    fail(`model açılamadı:\n${err.message ?? err}`);
+  }
+}
+
+async function loadSplat(dir, file) {
+  // Spark is only fetched for splats so mesh previews keep working offline-from-cache without it.
+  const { SparkRenderer, SplatMesh } = await import("@sparkjsdev/spark");
+  const meta = await (await fetch(dir + "splat_frame.json")).json();
+  scene.add(new SparkRenderer({ renderer }));
+  const splat = new SplatMesh({ url: dir + file });
+  await splat.initialized;
+  // Splats are trained in COLMAP space; this is the same upright/metres transform the mesh got.
+  new THREE.Matrix4().set(...meta.matrix).decompose(splat.position, splat.quaternion, splat.scale);
+  scene.add(splat);
+  model = splat;
+  splatBounds = new THREE.Box3(new THREE.Vector3(...meta.bounds[0]), new THREE.Vector3(...meta.bounds[1]));
+  startView = meta.view ?? null;
+  captureViews = meta.views ?? [];
+  // ?cam=k opens at capture viewpoint k (for comparing regions of a scan).
+  const camParam = Number(new URLSearchParams(location.search).get("cam"));
+  if (captureViews.length && camParam > 0) { startView = captureViews[Math.min(camParam, captureViews.length) - 1]; viewIndex = Math.min(camParam, captureViews.length) - 1; }
+  grid.position.set(0, 0, 0);   // the upright frame puts the floor at y=0
+  // Splats write no depth, so grid lines would draw straight through the scene; start with it off.
+  grid.visible = false;
+  setPressed($("btnGrid"), false);
+  $("btnWire").hidden = true;
+  $("stats").textContent = `${meta.splats.toLocaleString("tr-TR")} splat`;
+  $("loader").remove();
+  fit();
+  window.__viewerReady = true;
+}
+
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  stepFly(Math.min(clock.getDelta(), 0.1));
+  if (orbit.enabled) orbit.update();
+  renderer.render(scene, camera);
+});
+load();
+</script>
+</body>
+</html>

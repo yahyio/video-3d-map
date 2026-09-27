@@ -1,0 +1,14 @@
+# External engines (python setup_tools.py downloads them)
+tools/
+
+# Scans, phone captures (self-signed key + access token live here) and local experiments
+projects/
+captures/
+_diag/
+_test/
+target/
+.claude/
+
+__pycache__/
+*.pyc
+*.log
