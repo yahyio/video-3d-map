@@ -28,9 +28,9 @@ Her şey kendi Windows bilgisayarında çalışır: yükleme, hesap ya da bulut 
    - **Geometriye çevir:** splat'e birkaç saniyede basit, dokulu şekiller (silindir ve kutu) oturtur.
      Gürültülü tarama yerine temiz ve hafif bir geometri elde edersin.
 
-| Gaussian splat | Splat ve dokulu geometri (aynı açı) |
+| Gaussian splat (254 bin splat) | Geometriye çevir (2 şekil, 204 üçgen) |
 |---|---|
-| ![splat](docs/media/splat.jpg) | ![splat ve geometri](docs/media/splat-vs-geometry.jpg) |
+| ![splat](docs/media/splat.jpg) | ![geometri](docs/media/geometry.jpg) |
 
 Yukarıdaki örnek [`examples/creatine-jar`](examples/creatine-jar/output) klasöründe. Web'de hızlı açılsın
 diye nesnenin çevresine kırpıldı ve yalnızca temel renk bandı bırakıldı.

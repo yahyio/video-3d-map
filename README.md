@@ -27,9 +27,9 @@ locally on your Windows PC: no uploads, no accounts, no cloud.
    - **Convert to geometry** fits simple textured shapes (cylinders and boxes) to the splat in seconds.
      This gives clean, light geometry instead of a noisy scan.
 
-| Gaussian splat | Splat vs. textured geometry (same viewpoint) |
+| Gaussian splat (254k splats) | Convert to geometry (2 shapes, 204 triangles) |
 |---|---|
-| ![splat](docs/media/splat.jpg) | ![splat vs geometry](docs/media/splat-vs-geometry.jpg) |
+| ![splat](docs/media/splat.jpg) | ![geometry](docs/media/geometry.jpg) |
 
 The example above is in [`examples/creatine-jar`](examples/creatine-jar/output). It was cropped to the
 object and reduced to the base colour band so it stays small enough for the web.
